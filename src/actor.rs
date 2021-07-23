@@ -380,6 +380,8 @@ fn test_actor_new() {
             )
             .ok()
             .unwrap();
+        }
+        {
             assert_eq!(
                 Option::<bool>::from(
                     act.eval(r#"check_equal({"a", "b", "c"}, {"a", "b", "c"})"#)
