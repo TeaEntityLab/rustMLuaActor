@@ -142,6 +142,7 @@ impl Actor {
         func: F,
     ) -> Result<Function<'lua>, Error>
     where
+        'lua: 'callback,
         A: FromLuaMulti<'callback>,
         R: ToLuaMulti<'callback>,
         F: 'static + Send + Fn(&'callback Lua, A) -> Result<R, Error>,
@@ -156,6 +157,7 @@ impl Actor {
         key: &str,
     ) -> Result<Function<'lua>, Error>
     where
+        'lua: 'callback,
         A: FromLuaMulti<'callback>,
         R: ToLuaMulti<'callback>,
         F: 'static + Send + Fn(&'callback Lua, A) -> Result<R, Error>,
@@ -164,131 +166,110 @@ impl Actor {
         table.set(key, def)?;
         table.get(key)
     }
-    pub fn def_fn_with_name_nowait<'callback, F, A, R>(
+    pub fn def_fn_with_name_sync<'lua, 'callback, F, A, R>(
         &self,
+        lua: &'lua Lua,
         func: F,
         key: &'static str,
     ) -> Result<(), Error>
     where
+        'lua: 'callback,
         A: FromLuaMulti<'callback>,
         R: ToLuaMulti<'callback>,
-        F: 'static + Clone + Send + Sync + Fn(&'callback Lua, A) -> Result<R, Error>,
+        F: 'static + Clone + Send + Sync + Fn(&Lua, A) -> Result<R, Error>,
     {
+        /*
         match self.handler.clone() {
             Some(_handler) => {
-                let lua = self.lua.clone();
+                let lua = lua.clone();
                 _handler.lock().unwrap().post(RawFunc::new(move || {
-                    let lua = lua.lock().unwrap();
                     let _ = Self::def_fn_with_name(&lua, &lua.globals(), func.clone(), key);
                 }));
             }
             None => {
-                let lua = self.lua.lock().unwrap();
                 Self::def_fn_with_name(&lua, &lua.globals(), func.clone(), key)?;
             }
         }
+        */
+        Self::def_fn_with_name(&lua, &lua.globals(), func.clone(), key)?;
 
         Ok(())
     }
     #[inline]
-    pub fn load<'lua>(
-        lua: &'lua Lua,
-        source: &str,
-        name: Option<&str>,
-    ) -> Result<Function<'lua>, Error> {
-        lua.load(source, name)
+    pub fn load<'lua>(lua: &'lua Lua, source: &str) -> Result<Function<'lua>, Error> {
+        lua.load(source).into_function()
     }
-    pub fn load_nowait(
-        &self,
-        source: &'static str,
-        name: Option<&'static str>,
-    ) -> Result<(), Error> {
+    pub fn load_nowait(&self, source: &'static str) -> Result<(), Error> {
         match self.handler.clone() {
             Some(_handler) => {
                 let lua = self.lua.clone();
                 _handler.lock().unwrap().post(RawFunc::new(move || {
                     let lua = lua.lock().unwrap();
-                    let _ = Self::load(&lua, source, name);
+                    let _ = Self::load(&lua, source);
                 }));
             }
             None => {
                 let lua = self.lua.lock().unwrap();
-                Self::load(&lua, source, name)?;
+                Self::load(&lua, source)?;
             }
         }
 
         Ok(())
     }
-    pub fn exec(
-        &self,
-        source: &'static str,
-        name: Option<&'static str>,
-    ) -> Result<LuaMessage, Error> {
+    pub fn exec(&self, source: &'static str) -> Result<LuaMessage, Error> {
         match self.handler.clone() {
             Some(_handler) => {
                 let lua = self.lua.clone();
-                self.wait_async_lua_message_result(&_handler, move || {
-                    Self::_exec(&lua, source, name)
-                })
+                self.wait_async_lua_message_result(&_handler, move || Self::_exec(&lua, source))
             }
-            None => Self::_exec(&self.lua.clone(), source, name),
+            None => Self::_exec(&self.lua.clone(), source),
         }
     }
-    pub fn exec_nowait(
-        &self,
-        source: &'static str,
-        name: Option<&'static str>,
-    ) -> Result<(), Error> {
+    pub fn exec_nowait(&self, source: &'static str) -> Result<(), Error> {
         match self.handler.clone() {
             Some(_handler) => {
                 let lua = self.lua.clone();
                 _handler.lock().unwrap().post(RawFunc::new(move || {
-                    let _ = Self::_exec(&lua.clone(), source, name);
+                    let _ = Self::_exec(&lua.clone(), source);
                 }));
             }
             None => {
-                Self::_exec(&self.lua.clone(), source, name)?;
+                Self::_exec(&self.lua.clone(), source)?;
             }
         }
 
         Ok(())
     }
     #[inline]
-    fn _exec(lua: &Arc<Mutex<Lua>>, source: &str, name: Option<&str>) -> Result<LuaMessage, Error> {
-        lua.lock().unwrap().exec(source, name)
+    fn _exec(lua: &Arc<Mutex<Lua>>, source: &str) -> Result<LuaMessage, Error> {
+        lua.lock().unwrap().load(source).eval()
     }
     #[inline]
-    pub fn exec_multi<'lua, R>(lua: &'lua Lua, source: &str, name: Option<&str>) -> Result<R, Error>
+    pub fn exec_multi<'lua, R>(lua: &'lua Lua, source: &str) -> Result<R, Error>
     where
         R: FromLuaMulti<'lua>,
     {
-        lua.exec(source, name)
+        lua.load(source).eval()
     }
-    pub fn eval(
-        &self,
-        source: &'static str,
-        name: Option<&'static str>,
-    ) -> Result<LuaMessage, Error> {
+    pub fn eval(&self, source: &'static str) -> Result<LuaMessage, Error> {
         match self.handler.clone() {
             Some(_handler) => {
                 let lua = self.lua.clone();
-                self.wait_async_lua_message_result(&_handler, move || {
-                    Self::_eval(&lua, source, name)
-                })
+                self.wait_async_lua_message_result(&_handler, move || Self::_eval(&lua, source))
             }
-            None => Self::_eval(&self.lua.clone(), source, name),
+            None => Self::_eval(&self.lua.clone(), source),
         }
     }
     #[inline]
-    fn _eval(lua: &Arc<Mutex<Lua>>, source: &str, name: Option<&str>) -> Result<LuaMessage, Error> {
-        lua.lock().unwrap().eval(source, name)
+    fn _eval(lua: &Arc<Mutex<Lua>>, source: &str) -> Result<LuaMessage, Error> {
+        lua.lock().unwrap().load(source).eval()
     }
     #[inline]
-    pub fn eval_multi<'lua, R>(lua: &'lua Lua, source: &str, name: Option<&str>) -> Result<R, Error>
+    pub fn eval_multi<'lua, R>(lua: &'lua Lua, source: &str) -> Result<R, Error>
     where
         R: FromLuaMulti<'lua>,
     {
-        lua.eval(source, name)
+        lua.load(source).eval()
     }
 
     pub fn call(&self, name: &'static str, args: LuaMessage) -> Result<LuaMessage, Error> {
@@ -344,7 +325,6 @@ fn test_actor_new() {
             r#"
             i = 1
         "#,
-            None,
         );
         assert_eq!(Some(1), Option::from(act.get_global("i").ok().unwrap()));
 
@@ -352,7 +332,6 @@ fn test_actor_new() {
             r#"
             3
         "#,
-            None,
         );
         assert_eq!(Some(3), Option::from(v.ok().unwrap()));
 
@@ -363,8 +342,8 @@ fn test_actor_new() {
                 return Object:calc1(i)
             end
         "#,
-            None,
-        ).ok()
+        )
+        .ok()
         .unwrap();
         match act.call("testit", LuaMessage::from(1)) {
             Ok(_v) => {
@@ -372,44 +351,55 @@ fn test_actor_new() {
             }
             Err(_err) => {
                 println!("{:?}", _err);
-                panic!(_err);
+                std::panic::panic_any(_err);
             }
         }
 
         {
-            act.def_fn_with_name_nowait(|_, (list1, list2): (Vec<String>, Vec<String>)| {
-                // This function just checks whether two string lists are equal, and in an inefficient way.
-                // Lua callbacks return `mlua::Result`, an Ok value is a normal return, and an Err return
-                // turns into a Lua 'error'.  Again, any type that is convertible to lua may be returned.
-                Ok(list1 == list2)
-            }, "check_equal").ok().unwrap();
-            act.def_fn_with_name_nowait(
+            let lua_guard = act.lua.lock();
+            let lua = lua_guard.as_ref().ok().unwrap();
+            act.def_fn_with_name_sync(
+                lua,
+                |_, (list1, list2): (Vec<String>, Vec<String>)| {
+                    // This function just checks whether two string lists are equal, and in an inefficient way.
+                    // Lua callbacks return `mlua::Result`, an Ok value is a normal return, and an Err return
+                    // turns into a Lua 'error'.  Again, any type that is convertible to lua may be returned.
+                    Ok(list1 == list2)
+                },
+                "check_equal",
+            )
+            .ok()
+            .unwrap();
+            act.def_fn_with_name_sync(
+                lua,
                 |_, strings: Variadic<String>| {
                     // (This is quadratic!, it's just an example!)
                     Ok(strings.iter().fold("".to_owned(), |a, b| a + b))
                 },
                 "join",
-            ).ok()
+            )
+            .ok()
             .unwrap();
             assert_eq!(
                 Option::<bool>::from(
-                    act.eval(r#"check_equal({"a", "b", "c"}, {"a", "b", "c"})"#, None)
+                    act.eval(r#"check_equal({"a", "b", "c"}, {"a", "b", "c"})"#)
                         .ok()
                         .unwrap()
-                ).unwrap(),
+                )
+                .unwrap(),
                 true
             );
             assert_eq!(
                 Option::<bool>::from(
-                    act.eval(r#"check_equal({"a", "b", "c"}, {"d", "e", "f"})"#, None)
+                    act.eval(r#"check_equal({"a", "b", "c"}, {"d", "e", "f"})"#)
                         .ok()
                         .unwrap()
-                ).unwrap(),
+                )
+                .unwrap(),
                 false
             );
             assert_eq!(
-                Option::<String>::from(act.eval(r#"join("a", "b", "c")"#, None).ok().unwrap())
-                    .unwrap(),
+                Option::<String>::from(act.eval(r#"join("a", "b", "c")"#).ok().unwrap()).unwrap(),
                 "abc"
             );
         }
@@ -417,7 +407,8 @@ fn test_actor_new() {
         act.set_global(
             "arr1",
             LuaMessage::from(vec![LuaMessage::from(1), LuaMessage::from(2)]),
-        ).ok()
+        )
+        .ok()
         .unwrap();
 
         let v = Option::<Vec<LuaMessage>>::from(act.get_global("arr1").ok().unwrap());

@@ -208,8 +208,8 @@ impl<'lua> FromLua<'lua> for LuaMessage {
     fn from_lua(v: Value, lua: &'lua Lua) -> LuaResult<LuaMessage> {
         match v {
             Value::String(x) => Ok(LuaMessage::String(String::from_lua(Value::String(x), lua)?)),
-            Value::Integer(_) => Ok(LuaMessage::Integer(lua.coerce_integer(v)? as i64)),
-            Value::Number(_) => Ok(LuaMessage::Number(lua.coerce_number(v)? as f64)),
+            Value::Integer(_) => Ok(LuaMessage::Integer(lua.coerce_integer(v)?.unwrap() as i64)),
+            Value::Number(_) => Ok(LuaMessage::Number(lua.coerce_number(v)?.unwrap() as f64)),
             Value::Boolean(b) => Ok(LuaMessage::Boolean(b)),
             Value::Nil => Ok(LuaMessage::Nil),
             Value::Table(t) => {
@@ -345,7 +345,8 @@ mod tests {
                             .unwrap()
                     ),
                     &lua
-                ).unwrap()
+                )
+                .unwrap()
             ),
             discriminant(&LuaMessage::Array(t.clone()))
         );

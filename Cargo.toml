@@ -20,15 +20,15 @@ path = "src/lib.rs"
 
 [features]
 default = [ "lua54", "vendored" ]
-lua54 = [ "mlua/lua54", "mlua/module" ]
-lua53 = [ "mlua/lua53", "mlua/module" ]
-lua52 = [ "mlua/lua52", "mlua/module" ]
-lua51 = [ "mlua/lua51", "mlua/module" ]
-luajit = [ "mlua/luajit", "mlua/module" ]
+lua54 = [ "mlua/lua54" ]
+lua53 = [ "mlua/lua53" ]
+lua52 = [ "mlua/lua52" ]
+lua51 = [ "mlua/lua51" ]
+luajit = [ "mlua/luajit" ]
 vendored = ["mlua/vendored"]
 
 [dependencies]
-mlua = { version = "^0.6.2", features = [ "module" ] }
+mlua = { version = "^0.6.2", features = [ "module", "send" ] }
 fp_rust = "^0.1.40"
 
 [build-dependencies]
