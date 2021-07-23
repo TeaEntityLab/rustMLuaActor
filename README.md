@@ -1,13 +1,13 @@
-# rustLuaActor
+# rustMLuaActor
 
-[![tag](https://img.shields.io/github/tag/TeaEntityLab/rustLuaActor.svg)](https://github.com/TeaEntityLab/rustLuaActor)
-[![Crates.io](https://img.shields.io/crates/d/lua_actor.svg)](https://crates.io/crates/lua_actor)
-[![Travis CI Build Status](https://api.travis-ci.org/TeaEntityLab/rustLuaActor.svg?branch=master)](https://travis-ci.org/TeaEntityLab/rustLuaActor)
-[![docs](https://img.shields.io/badge/docs-online-5023dd.svg)](https://docs.rs/lua_actor/)
+[![tag](https://img.shields.io/github/tag/TeaEntityLab/rustMLuaActor.svg)](https://github.com/TeaEntityLab/rustMLuaActor)
+[![Crates.io](https://img.shields.io/crates/d/mlua_actor.svg)](https://crates.io/crates/mlua_actor)
+[![Travis CI Build Status](https://api.travis-ci.org/TeaEntityLab/rustMLuaActor.svg?branch=master)](https://travis-ci.org/TeaEntityLab/rustMLuaActor)
+[![docs](https://img.shields.io/badge/docs-online-5023dd.svg)](https://docs.rs/mlua_actor/)
 
-[![license](https://img.shields.io/github/license/TeaEntityLab/rustLuaActor.svg?style=social&label=License)](https://github.com/TeaEntityLab/rustLuaActor)
-[![stars](https://img.shields.io/github/stars/TeaEntityLab/rustLuaActor.svg?style=social&label=Stars)](https://github.com/TeaEntityLab/rustLuaActor)
-[![forks](https://img.shields.io/github/forks/TeaEntityLab/rustLuaActor.svg?style=social&label=Fork)](https://github.com/TeaEntityLab/rustLuaActor)
+[![license](https://img.shields.io/github/license/TeaEntityLab/rustMLuaActor.svg?style=social&label=License)](https://github.com/TeaEntityLab/rustMLuaActor)
+[![stars](https://img.shields.io/github/stars/TeaEntityLab/rustMLuaActor.svg?style=social&label=Stars)](https://github.com/TeaEntityLab/rustMLuaActor)
+[![forks](https://img.shields.io/github/forks/TeaEntityLab/rustMLuaActor.svg?style=social&label=Fork)](https://github.com/TeaEntityLab/rustMLuaActor)
 
 Lua Actor implementation for Rust (in sync/async modes)
 
@@ -15,18 +15,18 @@ Lua Actor implementation for Rust (in sync/async modes)
 
 I love Lua scripting; however it's hard to communicate between Lua & Rust, specially in some async scenarios.
 
-Thus I implemented rustLuaActor. I hope you would like it :)
+Thus I implemented rustMLuaActor. I hope you would like it :)
 
 # Features
 
-* Actor (*`lua_actor::actor`*)
+* Actor (*`mlua_actor::actor`*)
   * An Lua actor (sync/async)
   * You could run it on the specific handler (*`fp_rust::handler::HandlerThread`*)
 
 # Dependencies
 
 * [fp_rust](https://crates.io/crates/fp_rust)
-* [rlua](https://crates.io/crates/rlua)
+* [mlua](https://crates.io/crates/mlua)
 
 # Setup
 
@@ -34,8 +34,8 @@ Thus I implemented rustLuaActor. I hope you would like it :)
 
 ```
 fp_rust="*"
-rlua="*"
-lua_actor="*"
+mlua="*"
+mlua_actor="*"
 ```
 
 # Contribution
@@ -51,14 +51,14 @@ Most of *`LuaMessage`* parts are coded by him (except `Array` & reverse conversi
 Example:
 ```rust
 
-extern crate rlua;
+extern crate mlua;
 extern crate fp_rust;
-extern crate lua_actor;
+extern crate mlua_actor;
 
 fn main() {
 
-  use rlua::{Variadic};
-  use lua_actor::{actor::Actor, message::LuaMessage};
+  use mlua::{Variadic};
+  use mlua_actor::{actor::Actor, message::LuaMessage};
 
 
   fn test_actor(act: Actor) {
@@ -99,7 +99,7 @@ fn main() {
       {
           act.def_fn_with_name_nowait(|_, (list1, list2): (Vec<String>, Vec<String>)| {
               // This function just checks whether two string lists are equal, and in an inefficient way.
-              // Lua callbacks return `rlua::Result`, an Ok value is a normal return, and an Err return
+              // Lua callbacks return `mlua::Result`, an Ok value is a normal return, and an Err return
               // turns into a Lua 'error'.  Again, any type that is convertible to lua may be returned.
               Ok(list1 == list2)
           }, "check_equal").ok().unwrap();

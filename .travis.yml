@@ -1,7 +1,7 @@
 language: rust
 env:
   global:
-    - PROJECT_NAME: lua_actor
+    - PROJECT_NAME: mlua_actor
     - RUST_BACKTRACE: full
 matrix:
   fast_finish: true

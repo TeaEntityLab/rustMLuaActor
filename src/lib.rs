@@ -1,5 +1,5 @@
 extern crate fp_rust;
-extern crate rlua;
+extern crate mlua;
 
 pub mod actor;
 pub mod message;

@@ -3,8 +3,8 @@ Credits(mainly, except Array & reverse conversions):
 https://github.com/poga/actix-lua/blob/master/src/message.rs
 */
 
-use rlua::Result as LuaResult;
-use rlua::{Context, FromLua, ToLua, Value};
+use mlua::Result as LuaResult;
+use mlua::{FromLua, Lua, ToLua, Value};
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -205,11 +205,11 @@ lua_message_convert_from_float!(f32);
 lua_message_convert_from_float!(f64);
 
 impl<'lua> FromLua<'lua> for LuaMessage {
-    fn from_lua(v: Value<'lua>, lua: Context<'lua>) -> LuaResult<LuaMessage> {
+    fn from_lua(v: Value, lua: &'lua Lua) -> LuaResult<LuaMessage> {
         match v {
             Value::String(x) => Ok(LuaMessage::String(String::from_lua(Value::String(x), lua)?)),
-            Value::Integer(_) => Ok(LuaMessage::Integer(lua.coerce_integer(v).unwrap().unwrap())),
-            Value::Number(_) => Ok(LuaMessage::Number(lua.coerce_number(v).unwrap().unwrap())),
+            Value::Integer(_) => Ok(LuaMessage::Integer(lua.coerce_integer(v)? as i64)),
+            Value::Number(_) => Ok(LuaMessage::Number(lua.coerce_number(v)? as f64)),
             Value::Boolean(b) => Ok(LuaMessage::Boolean(b)),
             Value::Nil => Ok(LuaMessage::Nil),
             Value::Table(t) => {
@@ -229,7 +229,7 @@ impl<'lua> FromLua<'lua> for LuaMessage {
 }
 
 impl<'lua> ToLua<'lua> for LuaMessage {
-    fn to_lua(self, lua: Context<'lua>) -> LuaResult<Value<'lua>> {
+    fn to_lua(self, lua: &'lua Lua) -> LuaResult<Value<'lua>> {
         match self {
             LuaMessage::String(x) => Ok(Value::String(lua.create_string(&x)?)),
             LuaMessage::Integer(x) => Ok(Value::Integer(x)),
@@ -268,100 +268,90 @@ mod tests {
 
     #[test]
     fn to_lua() {
-        use rlua::Lua;
         // we only check if they have the correct variant
-        let lua_vm = Lua::new();
-        lua_vm.context(|lua| {
-            assert_eq!(
-                discriminant(&LuaMessage::Integer(42).to_lua(lua).unwrap()),
-                discriminant(&Value::Integer(42))
-            );
-            assert_eq!(
-                discriminant(&LuaMessage::String("foo".to_string()).to_lua(lua).unwrap()),
-                discriminant(&Value::String(lua.create_string("foo").unwrap()))
-            );
-            assert_eq!(
-                discriminant(&LuaMessage::Number(42.5).to_lua(lua).unwrap()),
-                discriminant(&Value::Number(42.5))
-            );
-            assert_eq!(
-                discriminant(&LuaMessage::Boolean(true).to_lua(lua).unwrap()),
-                discriminant(&Value::Boolean(true))
-            );
-            assert_eq!(
-                discriminant(&LuaMessage::Nil.to_lua(lua).unwrap()),
-                discriminant(&Value::Nil)
-            );
+        let lua = Lua::new();
+        assert_eq!(
+            discriminant(&LuaMessage::Integer(42).to_lua(&lua).unwrap()),
+            discriminant(&Value::Integer(42))
+        );
+        assert_eq!(
+            discriminant(&LuaMessage::String("foo".to_string()).to_lua(&lua).unwrap()),
+            discriminant(&Value::String(lua.create_string("foo").unwrap()))
+        );
+        assert_eq!(
+            discriminant(&LuaMessage::Number(42.5).to_lua(&lua).unwrap()),
+            discriminant(&Value::Number(42.5))
+        );
+        assert_eq!(
+            discriminant(&LuaMessage::Boolean(true).to_lua(&lua).unwrap()),
+            discriminant(&Value::Boolean(true))
+        );
+        assert_eq!(
+            discriminant(&LuaMessage::Nil.to_lua(&lua).unwrap()),
+            discriminant(&Value::Nil)
+        );
 
-            let mut t = HashMap::new();
-            t.insert("bar".to_string(), LuaMessage::from("abc"));
-            assert_eq!(
-                discriminant(&LuaMessage::Table(t).to_lua(lua).unwrap()),
-                discriminant(&Value::Table(lua.create_table().unwrap()))
-            );
-        })
+        let mut t = HashMap::new();
+        t.insert("bar".to_string(), LuaMessage::from("abc"));
+        assert_eq!(
+            discriminant(&LuaMessage::Table(t).to_lua(&lua).unwrap()),
+            discriminant(&Value::Table(lua.create_table().unwrap()))
+        );
     }
 
     #[test]
     fn from_lua() {
-        use rlua::Lua;
         // we only check if they have the correct variant
-        let lua_vm = Lua::new();
-        lua_vm.context(|lua| {
-            assert_eq!(
-                discriminant(&LuaMessage::from_lua(Value::Integer(42), lua).unwrap()),
-                discriminant(&LuaMessage::Integer(42))
-            );
-            assert_eq!(
-                discriminant(&LuaMessage::from_lua(Value::Number(42.5), lua).unwrap()),
-                discriminant(&LuaMessage::Number(42.5))
-            );
-            assert_eq!(
-                discriminant(
-                    &LuaMessage::from_lua(Value::String(lua.create_string("foo").unwrap()), lua)
-                        .unwrap()
-                ),
-                discriminant(&LuaMessage::String("foo".to_string()))
-            );
-            assert_eq!(
-                discriminant(&LuaMessage::from_lua(Value::Boolean(true), lua).unwrap()),
-                discriminant(&LuaMessage::Boolean(true))
-            );
-            assert_eq!(
-                discriminant(&LuaMessage::from_lua(Value::Nil, lua).unwrap()),
-                discriminant(&LuaMessage::Nil)
-            );
-
-            let mut t = HashMap::new();
-            t.insert("bar".to_string(), LuaMessage::from("abc"));
-            assert_eq!(
-                discriminant(
-                    &LuaMessage::from_lua(Value::Table(lua.create_table().unwrap()), lua).unwrap()
-                ),
-                discriminant(&LuaMessage::Table(t))
-            );
-
-            let t = vec![LuaMessage::from(1), LuaMessage::from(2)];
-            assert_eq!(
-                discriminant(
-                    &LuaMessage::from_lua(
-                        Value::Table(
-                            lua.create_sequence_from(vec!(
-                                LuaMessage::from(1),
-                                LuaMessage::from(2)
-                            ))
-                            .unwrap()
-                        ),
-                        lua
-                    )
+        let lua = Lua::new();
+        assert_eq!(
+            discriminant(&LuaMessage::from_lua(Value::Integer(42), &lua).unwrap()),
+            discriminant(&LuaMessage::Integer(42))
+        );
+        assert_eq!(
+            discriminant(&LuaMessage::from_lua(Value::Number(42.5), &lua).unwrap()),
+            discriminant(&LuaMessage::Number(42.5))
+        );
+        assert_eq!(
+            discriminant(
+                &LuaMessage::from_lua(Value::String(lua.create_string("foo").unwrap()), &lua)
                     .unwrap()
-                ),
-                discriminant(&LuaMessage::Array(t.clone()))
-            );
+            ),
+            discriminant(&LuaMessage::String("foo".to_string()))
+        );
+        assert_eq!(
+            discriminant(&LuaMessage::from_lua(Value::Boolean(true), &lua).unwrap()),
+            discriminant(&LuaMessage::Boolean(true))
+        );
+        assert_eq!(
+            discriminant(&LuaMessage::from_lua(Value::Nil, &lua).unwrap()),
+            discriminant(&LuaMessage::Nil)
+        );
 
-            // println!("{:?}\n{:?}", LuaMessage::Array(t.clone()), LuaMessage::from_lua(
-            //     Value::Table(lua.create_sequence_from(vec!(LuaMessage::from(12),LuaMessage::from(2))).unwrap()), &lua
-            // ).unwrap());
-        })
+        let mut t = HashMap::new();
+        t.insert("bar".to_string(), LuaMessage::from("abc"));
+        assert_eq!(
+            discriminant(
+                &LuaMessage::from_lua(Value::Table(lua.create_table().unwrap()), &lua).unwrap()
+            ),
+            discriminant(&LuaMessage::Table(t))
+        );
+
+        let t = vec![LuaMessage::from(1), LuaMessage::from(2)];
+        assert_eq!(
+            discriminant(
+                &LuaMessage::from_lua(
+                    Value::Table(
+                        lua.create_sequence_from(vec!(LuaMessage::from(1), LuaMessage::from(2)))
+                            .unwrap()
+                    ),
+                    &lua
+                ).unwrap()
+            ),
+            discriminant(&LuaMessage::Array(t.clone()))
+        );
+
+        // println!("{:?}\n{:?}", LuaMessage::Array(t.clone()), LuaMessage::from_lua(
+        //     Value::Table(lua.create_sequence_from(vec!(LuaMessage::from(12),LuaMessage::from(2))).unwrap()), &lua
+        // ).unwrap());
     }
 }

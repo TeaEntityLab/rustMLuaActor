@@ -1,26 +1,31 @@
 [package]
-name = "lua_actor"
-version = "0.2.0"
+name = "mlua_actor"
+version = "0.1.0"
 license = "MIT"
 authors = ["JunYi JohnTeee Lee <johnteee@gmail.com>"]
 include = ["src/**/*.rs", "Cargo.toml"]
 readme = "README.md"
 description = "Lua Actor for Rust(sync/async)"
-documentation = "https://docs.rs/lua_actor/"
-homepage = "https://github.com/TeaEntityLab/rustLuaActor"
-repository = "https://github.com/TeaEntityLab/rustLuaActor"
+documentation = "https://docs.rs/mlua_actor/"
+homepage = "https://github.com/TeaEntityLab/rustMLuaActor"
+repository = "https://github.com/TeaEntityLab/rustMLuaActor"
 keywords = ["lua","actor","binding","async"]
 
 [badges.maintenance]
 status = "actively-developed"
 
 [lib]
-name = "lua_actor"
+name = "mlua_actor"
 path = "src/lib.rs"
 
 [features]
-default = []
+default = [ "lua54" ]
+lua54 = [ "mlua/lua54" ]
+lua53 = [ "mlua/lua53" ]
+lua52 = [ "mlua/lua52" ]
+lua51 = [ "mlua/lua51" ]
+luajit = [ "mlua/luajit" ]
 
 [dependencies]
-rlua="^0.17.0"
-fp_rust="^0.1.40"
+mlua = { version = "^0.6.2" }
+fp_rust = "^0.1.40"
