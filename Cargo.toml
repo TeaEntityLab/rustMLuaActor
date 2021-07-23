@@ -1,0 +1,26 @@
+[package]
+name = "lua_actor"
+version = "0.2.0"
+license = "MIT"
+authors = ["JunYi JohnTeee Lee <johnteee@gmail.com>"]
+include = ["src/**/*.rs", "Cargo.toml"]
+readme = "README.md"
+description = "Lua Actor for Rust(sync/async)"
+documentation = "https://docs.rs/lua_actor/"
+homepage = "https://github.com/TeaEntityLab/rustLuaActor"
+repository = "https://github.com/TeaEntityLab/rustLuaActor"
+keywords = ["lua","actor","binding","async"]
+
+[badges.maintenance]
+status = "actively-developed"
+
+[lib]
+name = "lua_actor"
+path = "src/lib.rs"
+
+[features]
+default = []
+
+[dependencies]
+rlua="^0.17.0"
+fp_rust="^0.1.40"
