@@ -28,11 +28,9 @@ luajit = [ "mlua/luajit" ]
 vendored = ["mlua/vendored"]
 
 [dependencies]
-mlua = { version = "^0.6.2", features = [ "module", "send" ] }
+mlua = { version = "^0.6.2", features = [ "send" ] }
 fp_rust = "^0.1.40"
 
 [build-dependencies]
 cc = { version = "1.0" }
 pkg-config = { version = "0.3.17" }
-lua-src = { version = ">= 540.0.0, < 550.0.0", optional = true, cc = "1.0" }
-luajit-src = { version = ">= 210.1.2, < 220.0.0", optional = true, cc = "1.0" }
