@@ -19,13 +19,20 @@ name = "mlua_actor"
 path = "src/lib.rs"
 
 [features]
-default = [ "lua54" ]
-lua54 = [ "mlua/lua54" ]
-lua53 = [ "mlua/lua53" ]
-lua52 = [ "mlua/lua52" ]
-lua51 = [ "mlua/lua51" ]
-luajit = [ "mlua/luajit" ]
+default = [ "lua54", "vendored" ]
+lua54 = [ "mlua/lua54", "mlua/module" ]
+lua53 = [ "mlua/lua53", "mlua/module" ]
+lua52 = [ "mlua/lua52", "mlua/module" ]
+lua51 = [ "mlua/lua51", "mlua/module" ]
+luajit = [ "mlua/luajit", "mlua/module" ]
+vendored = ["mlua/vendored"]
 
 [dependencies]
-mlua = { version = "^0.6.2" }
+mlua = { version = "^0.6.2", features = [ "module" ] }
 fp_rust = "^0.1.40"
+
+[build-dependencies]
+cc = { version = "1.0" }
+pkg-config = { version = "0.3.17" }
+lua-src = { version = ">= 540.0.0, < 550.0.0", optional = true, cc = "1.0" }
+luajit-src = { version = ">= 210.1.2, < 220.0.0", optional = true, cc = "1.0" }
