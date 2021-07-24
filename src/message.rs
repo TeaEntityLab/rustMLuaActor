@@ -3,9 +3,11 @@ Credits(mainly, except Array & reverse conversions):
 https://github.com/poga/actix-lua/blob/master/src/message.rs
 */
 
-use mlua::Result as LuaResult;
-use mlua::{FromLua, Lua, ToLua, Value};
 use std::collections::HashMap;
+use std::iter::FromIterator;
+
+use mlua::Result as LuaResult;
+use mlua::{FromLua, Lua, MultiValue, ToLua, ToLuaMulti, Value, Variadic};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LuaMessage {
@@ -16,6 +18,7 @@ pub enum LuaMessage {
     Nil,
     Table(HashMap<String, LuaMessage>),
     Array(Vec<LuaMessage>),
+    Variadic(VariadicLuaMessage),
 }
 
 impl From<bool> for LuaMessage {
@@ -36,6 +39,7 @@ impl From<LuaMessage> for Option<bool> {
             LuaMessage::Nil => None,
             LuaMessage::Table(_h) => Some(!_h.is_empty()),
             LuaMessage::Array(_h) => Some(!_h.is_empty()),
+            LuaMessage::Variadic(_h) => Some(!_h.0.is_empty()),
         }
     }
 }
@@ -60,7 +64,34 @@ impl From<LuaMessage> for Option<String> {
             LuaMessage::Nil => None,
             LuaMessage::Table(_h) => Some(format!("{:?}", _h)),
             LuaMessage::Array(_h) => Some(format!("{:?}", _h)),
+            LuaMessage::Variadic(_h) => Some(format!("{:?}", _h.0)),
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct VariadicLuaMessage(Variadic<LuaMessage>);
+
+impl PartialEq<VariadicLuaMessage> for VariadicLuaMessage {
+    fn eq(&self, other: &VariadicLuaMessage) -> bool {
+        let other = other.0.to_vec();
+        return self.0.to_vec().eq(&other);
+    }
+}
+
+impl From<Variadic<LuaMessage>> for LuaMessage {
+    fn from(s: Variadic<LuaMessage>) -> Self {
+        LuaMessage::from(
+            s.into_iter()
+                .map(|v| LuaMessage::from(v.clone()))
+                .collect::<Vec<LuaMessage>>(),
+        )
+    }
+}
+
+impl Into<Variadic<LuaMessage>> for LuaMessage {
+    fn into(self) -> Variadic<LuaMessage> {
+        return Variadic::from_iter([self]);
     }
 }
 
@@ -85,6 +116,7 @@ macro_rules! lua_message_number_convert {
                     LuaMessage::Nil => None,
                     LuaMessage::Table(_h) => None,
                     LuaMessage::Array(_h) => None,
+                    LuaMessage::Variadic(_h) => None,
                 }
             }
         }
@@ -161,12 +193,24 @@ impl From<LuaMessage> for Option<HashMap<String, LuaMessage>> {
                 }
                 Some(new_one)
             }
+            LuaMessage::Variadic(_h) => {
+                let mut new_one = HashMap::default();
+                for (k, v) in _h.0.into_iter().enumerate() {
+                    new_one.insert(k.to_string(), v);
+                }
+                Some(new_one)
+            }
         }
     }
 }
 impl From<Vec<LuaMessage>> for LuaMessage {
     fn from(s: Vec<LuaMessage>) -> Self {
         LuaMessage::Array(s)
+    }
+}
+impl FromIterator<LuaMessage> for LuaMessage {
+    fn from_iter<I: IntoIterator<Item = LuaMessage>>(iter: I) -> Self {
+        LuaMessage::Array(Vec::<LuaMessage>::from_iter(iter))
     }
 }
 impl From<LuaMessage> for Option<Vec<LuaMessage>> {
@@ -186,6 +230,7 @@ impl From<LuaMessage> for Option<Vec<LuaMessage>> {
                 Some(new_one)
             }
             LuaMessage::Array(_h) => Some(_h),
+            LuaMessage::Variadic(_h) => Some(_h.0.to_vec()),
         }
     }
 }
@@ -238,8 +283,61 @@ impl<'lua> ToLua<'lua> for LuaMessage {
             LuaMessage::Nil => Ok(Value::Nil),
             LuaMessage::Table(x) => Ok(Value::Table(lua.create_table_from(x)?)),
             LuaMessage::Array(x) => Ok(Value::Table(lua.create_sequence_from(x)?)),
+            LuaMessage::Variadic(x) => Ok(Value::Table(lua.create_sequence_from(x.0)?)),
             // You should not create RPCNotifyLater from outside of lua
             // _ => unimplemented!(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct MultiLuaMessage(LuaMessage);
+
+impl<'lua> ToLuaMulti<'lua> for MultiLuaMessage {
+    fn to_lua_multi(self, lua: &'lua Lua) -> LuaResult<MultiValue<'lua>> {
+        match self.0 {
+            LuaMessage::Variadic(x) => Ok(x.0.to_lua_multi(lua)?),
+            _ => Ok(self.0.to_lua_multi(lua)?),
+        }
+    }
+}
+
+impl Into<MultiLuaMessage> for LuaMessage {
+    fn into(self) -> MultiLuaMessage {
+        MultiLuaMessage { 0: self }
+    }
+}
+
+impl From<Vec<LuaMessage>> for MultiLuaMessage {
+    fn from(s: Vec<LuaMessage>) -> Self {
+        MultiLuaMessage {
+            0: LuaMessage::Variadic(VariadicLuaMessage {
+                0: Variadic::<LuaMessage>::from_iter(s),
+            }),
+        }
+    }
+}
+
+impl FromIterator<LuaMessage> for MultiLuaMessage {
+    fn from_iter<I: IntoIterator<Item = LuaMessage>>(iter: I) -> Self {
+        MultiLuaMessage {
+            0: LuaMessage::Variadic(VariadicLuaMessage(Variadic::<LuaMessage>::from_iter(iter))),
+        }
+    }
+}
+
+impl From<Variadic<LuaMessage>> for MultiLuaMessage {
+    fn from(s: Variadic<LuaMessage>) -> Self {
+        MultiLuaMessage {
+            0: LuaMessage::Variadic(VariadicLuaMessage(s)),
+        }
+    }
+}
+
+impl From<VariadicLuaMessage> for MultiLuaMessage {
+    fn from(s: VariadicLuaMessage) -> Self {
+        MultiLuaMessage {
+            0: LuaMessage::Variadic(s),
         }
     }
 }
