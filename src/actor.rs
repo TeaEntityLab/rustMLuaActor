@@ -384,10 +384,12 @@ fn test_actor_new() {
             "testlist",
             // Vec::<LuaMessage>::from_iter([3.into(), 2.into()]).into(),
             // LuaMessage::from_iter([3.into(), 2.into()]),
-            LuaMessage::from_slice([3, 2]),
+            // LuaMessage::from_slice([3, 2]),
+            // LuaMessage::from((3, 2.0, "", vec![4, 5])),
+            ((3, 2.0, "", vec![4, 5]),), // <= This is an array
         ) {
             Ok(_v) => {
-                assert_eq!(Some(2), Option::from(_v));
+                assert_eq!(Some(4), Option::from(_v));
             }
             Err(_err) => {
                 println!("{:?}", _err);
@@ -409,7 +411,7 @@ fn test_actor_new() {
             // Variadic::<LuaMessage>::from_iter([6.into(), 7.into()]),
             // Vec::<LuaMessage>::from([6.into(), 7.into()]),
             // MultiLuaMessage::from_slice([6, 7]),
-            (6, 7.0, ""),
+            (6, 7.0, "", vec![8, 9]), // <= Variadic params
         ) {
             Ok(_v) => {
                 assert_eq!(Some(13), Option::from(_v));

@@ -17,7 +17,7 @@ pub enum LuaMessage {
     Boolean(bool),
     Nil,
     Table(HashMap<String, LuaMessage>),
-    Array(Vec<LuaMessage>),
+    Array(VecDeque<LuaMessage>),
     Variadic(VariadicLuaMessage),
 }
 
@@ -310,12 +310,12 @@ impl From<LuaMessage> for Option<HashMap<String, LuaMessage>> {
 }
 impl From<Vec<LuaMessage>> for LuaMessage {
     fn from(s: Vec<LuaMessage>) -> Self {
-        LuaMessage::Array(s)
+        LuaMessage::Array(VecDeque::from(s))
     }
 }
 impl FromIterator<LuaMessage> for LuaMessage {
     fn from_iter<I: IntoIterator<Item = LuaMessage>>(iter: I) -> Self {
-        LuaMessage::Array(Vec::<LuaMessage>::from_iter(iter))
+        LuaMessage::Array(VecDeque::<LuaMessage>::from_iter(iter))
     }
 }
 /*
@@ -341,7 +341,7 @@ impl From<LuaMessage> for Option<Vec<LuaMessage>> {
                 }
                 Some(new_one)
             }
-            LuaMessage::Array(_h) => Some(_h),
+            LuaMessage::Array(_h) => Some(_h.into()),
             LuaMessage::Variadic(_h) => Some(_h.0.into()),
         }
     }
@@ -374,7 +374,10 @@ impl<'lua> FromLua<'lua> for LuaMessage {
                     && t.clone().pairs::<i32, LuaMessage>().count()
                         == t.clone().sequence_values::<LuaMessage>().count()
                 {
-                    Ok(LuaMessage::Array(Vec::from_lua(Value::Table(t), lua)?))
+                    Ok(LuaMessage::Array(VecDeque::from(Vec::from_lua(
+                        Value::Table(t),
+                        lua,
+                    )?)))
                 } else {
                     Ok(LuaMessage::Table(HashMap::from_lua(Value::Table(t), lua)?))
                 }
@@ -497,6 +500,11 @@ macro_rules! impl_tuple {
                 MultiLuaMessage::from_iter([])
             }
         }
+        impl Into<LuaMessage> for () {
+            fn into(self) -> LuaMessage {
+                LuaMessage::from_iter([])
+            }
+        }
     );
 
     ($last:ident $($name:ident)*) => (
@@ -504,15 +512,35 @@ macro_rules! impl_tuple {
             where $($name: Into<LuaMessage>,)*
                   $last: Into<MultiLuaMessage>
         {
-            #[allow(unused_mut)]
-            #[allow(unused_variables)]
             #[allow(non_snake_case)]
             fn into(self) -> MultiLuaMessage {
                 let ($($name,)* $last,) = self;
 
-                let mut results = $last.into();
-                push_reverse!(results, $($name.into(),)*);
-                results
+                let mut v = MultiLuaMessage::from_iter([]);
+                let lastOne = $last.into().0;
+                v.push_front(lastOne);
+                push_reverse!(v, $($name.into(),)*);
+
+                // println!("{:?}", v);
+                v
+            }
+        }
+        impl<$($name,)* $last> From<($($name,)* $last,)> for LuaMessage
+            where $($name: Into<LuaMessage>,)*
+                  $last: Into<LuaMessage>
+        {
+            #[allow(non_snake_case)]
+            fn from(s: ($($name,)* $last,)) -> LuaMessage {
+                let ($($name,)* $last,) = s;
+
+                let last_instance = $last.into();
+
+                let mut v = VecDeque::<LuaMessage>::from_iter([]);
+                v.push_front(last_instance);
+                push_reverse!(v, $($name.into(),)*);
+
+                // println!("{:?}", v);
+                LuaMessage::Array(v)
             }
         }
     );
@@ -653,7 +681,7 @@ mod tests {
                 )
                 .unwrap()
             ),
-            discriminant(&LuaMessage::Array(t.clone()))
+            discriminant(&LuaMessage::Array(VecDeque::from(t)))
         );
 
         // println!("{:?}\n{:?}", LuaMessage::Array(t.clone()), LuaMessage::from_lua(
