@@ -3,7 +3,7 @@ Credits(mainly, except Array & reverse conversions):
 https://github.com/poga/actix-lua/blob/master/src/message.rs
 */
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::iter::FromIterator;
 
 use mlua::Result as LuaResult;
@@ -19,6 +19,16 @@ pub enum LuaMessage {
     Table(HashMap<String, LuaMessage>),
     Array(Vec<LuaMessage>),
     Variadic(VariadicLuaMessage),
+}
+
+impl LuaMessage {
+    pub fn from_slice<I: IntoIterator<Item = impl Into<LuaMessage>>>(iter: I) -> Self {
+        LuaMessage::from(
+            iter.into_iter()
+                .map(|v| v.into())
+                .collect::<Vec<LuaMessage>>(),
+        )
+    }
 }
 
 impl From<bool> for LuaMessage {
@@ -70,24 +80,119 @@ impl From<LuaMessage> for Option<String> {
 }
 
 #[derive(Debug, Clone)]
-pub struct VariadicLuaMessage(Variadic<LuaMessage>);
+pub struct VariadicLuaMessage(VecDeque<LuaMessage>);
+
+impl VariadicLuaMessage {
+    pub fn push_front(&mut self, value: LuaMessage) {
+        self.0.push_front(value);
+    }
+}
 
 impl PartialEq<VariadicLuaMessage> for VariadicLuaMessage {
     fn eq(&self, other: &VariadicLuaMessage) -> bool {
-        let other = other.0.to_vec();
-        return self.0.to_vec().eq(&other);
+        let other = &other.0;
+        return self.0.eq(other);
     }
 }
 
-impl From<Variadic<LuaMessage>> for LuaMessage {
-    fn from(s: Variadic<LuaMessage>) -> Self {
-        LuaMessage::from(
-            s.into_iter()
-                .map(|v| LuaMessage::from(v.clone()))
-                .collect::<Vec<LuaMessage>>(),
-        )
+impl From<VecDeque<LuaMessage>> for LuaMessage {
+    fn from(s: VecDeque<LuaMessage>) -> Self {
+        LuaMessage::from_iter(s.into_iter())
     }
 }
+
+impl Into<VecDeque<LuaMessage>> for VariadicLuaMessage {
+    fn into(self) -> VecDeque<LuaMessage> {
+        return self.0;
+    }
+}
+
+impl From<VariadicLuaMessage> for LuaMessage {
+    fn from(s: VariadicLuaMessage) -> Self {
+        LuaMessage::from_slice(s.0)
+    }
+}
+impl From<Variadic<LuaMessage>> for LuaMessage {
+    fn from(s: Variadic<LuaMessage>) -> Self {
+        LuaMessage::from(s.into_iter().map(|v| v).collect::<Vec<LuaMessage>>())
+    }
+}
+
+macro_rules! lua_message_convert_from_collection {
+    ($x:tt, $y:ty) => {
+        impl From<$x<$y>> for LuaMessage {
+            fn from(s: $x<$y>) -> Self {
+                LuaMessage::from(
+                    s.into_iter()
+                        .map(|v| LuaMessage::from(v))
+                        .collect::<Vec<LuaMessage>>(),
+                )
+            }
+        }
+        impl From<$x<$y>> for MultiLuaMessage {
+            fn from(s: $x<$y>) -> Self {
+                LuaMessage::from(s).into()
+            }
+        }
+    };
+}
+macro_rules! lua_message_convert_from_collection_option {
+    ($x:tt, $y:ty) => {
+        impl From<$x<Option<$y>>> for LuaMessage {
+            fn from(s: $x<Option<$y>>) -> Self {
+                LuaMessage::from(
+                    s.into_iter()
+                        .map(|v| match v {
+                            Some(s) => LuaMessage::from(s),
+                            None => LuaMessage::Nil,
+                        })
+                        .collect::<Vec<LuaMessage>>(),
+                )
+            }
+        }
+        impl From<$x<Option<$y>>> for MultiLuaMessage {
+            fn from(s: $x<Option<$y>>) -> Self {
+                LuaMessage::from(s).into()
+            }
+        }
+    };
+}
+macro_rules! lua_message_convert_from_collection_variants_only {
+    ($y:ty) => {
+        lua_message_convert_from_collection!(Vec, $y);
+        lua_message_convert_from_collection!(Variadic, $y);
+        lua_message_convert_from_collection_option!(Vec, $y);
+        lua_message_convert_from_collection_option!(Variadic, $y);
+    };
+}
+macro_rules! lua_message_convert_from_collection_variants_and_types {
+    ($y:ty) => {
+        lua_message_convert_from_collection_variants_only!($y);
+        impl From<$y> for MultiLuaMessage {
+            fn from(s: $y) -> Self {
+                LuaMessage::from(s).into()
+            }
+        }
+    };
+}
+lua_message_convert_from_collection_variants_and_types!(String);
+lua_message_convert_from_collection_variants_and_types!(&str);
+lua_message_convert_from_collection_variants_and_types!(bool);
+lua_message_convert_from_collection_variants_and_types!(i8);
+lua_message_convert_from_collection_variants_and_types!(u8);
+lua_message_convert_from_collection_variants_and_types!(i16);
+lua_message_convert_from_collection_variants_and_types!(u16);
+lua_message_convert_from_collection_variants_and_types!(i32);
+lua_message_convert_from_collection_variants_and_types!(u32);
+lua_message_convert_from_collection_variants_and_types!(i64);
+lua_message_convert_from_collection_variants_and_types!(isize);
+lua_message_convert_from_collection_variants_and_types!(usize);
+lua_message_convert_from_collection_variants_and_types!(f32);
+lua_message_convert_from_collection_variants_and_types!(f64);
+lua_message_convert_from_collection_variants_and_types!(HashMap<String, LuaMessage>);
+lua_message_convert_from_collection_variants_only!(Vec<LuaMessage>);
+lua_message_convert_from_collection_variants_only!(VariadicLuaMessage);
+lua_message_convert_from_collection_variants_only!(Variadic<LuaMessage>);
 
 impl Into<Variadic<LuaMessage>> for LuaMessage {
     fn into(self) -> Variadic<LuaMessage> {
@@ -213,6 +318,13 @@ impl FromIterator<LuaMessage> for LuaMessage {
         LuaMessage::Array(Vec::<LuaMessage>::from_iter(iter))
     }
 }
+/*
+impl<I: IntoIterator<Item = LuaMessage>> From<I> for LuaMessage {
+    fn from(s: I) -> Self {
+        LuaMessage::Array(Vec::<LuaMessage>::from_iter(s))
+    }
+}
+// */
 impl From<LuaMessage> for Option<Vec<LuaMessage>> {
     fn from(s: LuaMessage) -> Self {
         match s {
@@ -230,7 +342,7 @@ impl From<LuaMessage> for Option<Vec<LuaMessage>> {
                 Some(new_one)
             }
             LuaMessage::Array(_h) => Some(_h),
-            LuaMessage::Variadic(_h) => Some(_h.0.to_vec()),
+            LuaMessage::Variadic(_h) => Some(_h.0.into()),
         }
     }
 }
@@ -250,11 +362,11 @@ lua_message_convert_from_float!(f32);
 lua_message_convert_from_float!(f64);
 
 impl<'lua> FromLua<'lua> for LuaMessage {
-    fn from_lua(v: Value, lua: &'lua Lua) -> LuaResult<LuaMessage> {
+    fn from_lua(v: Value<'lua>, lua: &'lua Lua) -> LuaResult<LuaMessage> {
         match v {
             Value::String(x) => Ok(LuaMessage::String(String::from_lua(Value::String(x), lua)?)),
-            Value::Integer(_) => Ok(LuaMessage::Integer(lua.coerce_integer(v)?.unwrap() as i64)),
-            Value::Number(_) => Ok(LuaMessage::Number(lua.coerce_number(v)?.unwrap() as f64)),
+            Value::Integer(_) => Ok(LuaMessage::Integer(lua.coerce_integer(v).unwrap().unwrap())),
+            Value::Number(_) => Ok(LuaMessage::Number(lua.coerce_number(v).unwrap().unwrap())),
             Value::Boolean(b) => Ok(LuaMessage::Boolean(b)),
             Value::Nil => Ok(LuaMessage::Nil),
             Value::Table(t) => {
@@ -293,10 +405,38 @@ impl<'lua> ToLua<'lua> for LuaMessage {
 #[derive(Debug, PartialEq, Clone)]
 pub struct MultiLuaMessage(LuaMessage);
 
+impl MultiLuaMessage {
+    pub fn from_slice<I: IntoIterator<Item = impl Into<LuaMessage>>>(iter: I) -> Self {
+        LuaMessage::Variadic(VariadicLuaMessage(
+            iter.into_iter()
+                .map(|v| v.into())
+                .collect::<VecDeque<LuaMessage>>(),
+        ))
+        .into()
+    }
+
+    pub fn push_front(&mut self, value: LuaMessage) {
+        match &mut self.0 {
+            LuaMessage::Variadic(v) => {
+                v.0.push_front(value);
+            }
+            _ => {
+                let mut v = VecDeque::<LuaMessage>::new();
+                v.push_front(self.0.clone());
+                v.push_front(value);
+
+                self.0 = LuaMessage::Variadic(VariadicLuaMessage(v))
+            }
+        }
+    }
+}
+
 impl<'lua> ToLuaMulti<'lua> for MultiLuaMessage {
     fn to_lua_multi(self, lua: &'lua Lua) -> LuaResult<MultiValue<'lua>> {
         match self.0 {
-            LuaMessage::Variadic(x) => Ok(x.0.to_lua_multi(lua)?),
+            LuaMessage::Variadic(x) => {
+                Ok(Variadic::<LuaMessage>::from_iter(x.0.into_iter()).to_lua_multi(lua)?)
+            }
             _ => Ok(self.0.to_lua_multi(lua)?),
         }
     }
@@ -312,8 +452,16 @@ impl From<Vec<LuaMessage>> for MultiLuaMessage {
     fn from(s: Vec<LuaMessage>) -> Self {
         MultiLuaMessage {
             0: LuaMessage::Variadic(VariadicLuaMessage {
-                0: Variadic::<LuaMessage>::from_iter(s),
+                0: VecDeque::<LuaMessage>::from(s),
             }),
+        }
+    }
+}
+
+impl From<VecDeque<LuaMessage>> for MultiLuaMessage {
+    fn from(s: VecDeque<LuaMessage>) -> Self {
+        MultiLuaMessage {
+            0: LuaMessage::Variadic(VariadicLuaMessage { 0: s }),
         }
     }
 }
@@ -321,7 +469,7 @@ impl From<Vec<LuaMessage>> for MultiLuaMessage {
 impl FromIterator<LuaMessage> for MultiLuaMessage {
     fn from_iter<I: IntoIterator<Item = LuaMessage>>(iter: I) -> Self {
         MultiLuaMessage {
-            0: LuaMessage::Variadic(VariadicLuaMessage(Variadic::<LuaMessage>::from_iter(iter))),
+            0: LuaMessage::Variadic(VariadicLuaMessage(VecDeque::<LuaMessage>::from_iter(iter))),
         }
     }
 }
@@ -329,7 +477,7 @@ impl FromIterator<LuaMessage> for MultiLuaMessage {
 impl From<Variadic<LuaMessage>> for MultiLuaMessage {
     fn from(s: Variadic<LuaMessage>) -> Self {
         MultiLuaMessage {
-            0: LuaMessage::Variadic(VariadicLuaMessage(s)),
+            0: LuaMessage::Variadic(VariadicLuaMessage(VecDeque::<LuaMessage>::from(s.to_vec()))),
         }
     }
 }
@@ -341,6 +489,65 @@ impl From<VariadicLuaMessage> for MultiLuaMessage {
         }
     }
 }
+
+macro_rules! impl_tuple {
+    () => (
+        impl Into<MultiLuaMessage> for () {
+            fn into(self) -> MultiLuaMessage {
+                MultiLuaMessage::from_iter([])
+            }
+        }
+    );
+
+    ($last:ident $($name:ident)*) => (
+        impl<$($name,)* $last> Into<MultiLuaMessage> for ($($name,)* $last,)
+            where $($name: Into<LuaMessage>,)*
+                  $last: Into<MultiLuaMessage>
+        {
+            #[allow(unused_mut)]
+            #[allow(unused_variables)]
+            #[allow(non_snake_case)]
+            fn into(self) -> MultiLuaMessage {
+                let ($($name,)* $last,) = self;
+
+                let mut results = $last.into();
+                push_reverse!(results, $($name.into(),)*);
+                results
+            }
+        }
+    );
+}
+
+macro_rules! push_reverse {
+    ($multi_value:expr, $first:expr, $($rest:expr,)*) => (
+        push_reverse!($multi_value, $($rest,)*);
+        $multi_value.push_front($first);
+    );
+
+    ($multi_value:expr, $first:expr) => (
+        $multi_value.push_front($first);
+    );
+
+    ($multi_value:expr,) => ();
+}
+
+impl_tuple!();
+impl_tuple!(A);
+impl_tuple!(A B);
+impl_tuple!(A B C);
+impl_tuple!(A B C D);
+impl_tuple!(A B C D E);
+impl_tuple!(A B C D E F);
+impl_tuple!(A B C D E F G);
+impl_tuple!(A B C D E F G H);
+impl_tuple!(A B C D E F G H I);
+impl_tuple!(A B C D E F G H I J);
+impl_tuple!(A B C D E F G H I J K);
+impl_tuple!(A B C D E F G H I J K L);
+impl_tuple!(A B C D E F G H I J K L M);
+impl_tuple!(A B C D E F G H I J K L M N);
+impl_tuple!(A B C D E F G H I J K L M N O);
+impl_tuple!(A B C D E F G H I J K L M N O P);
 
 #[cfg(test)]
 mod tests {

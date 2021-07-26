@@ -272,7 +272,11 @@ impl Actor {
         lua.load(source).eval()
     }
 
-    pub fn call(&self, name: &'static str, args: MultiLuaMessage) -> Result<LuaMessage, Error> {
+    pub fn call(
+        &self,
+        name: &'static str,
+        args: impl Into<MultiLuaMessage> + Clone + Sync + Send + 'static,
+    ) -> Result<LuaMessage, Error> {
         match self.handler.clone() {
             Some(_handler) => {
                 let lua = self.lua.clone();
@@ -283,7 +287,11 @@ impl Actor {
             None => Self::_call(&self.lua.clone(), name, args),
         }
     }
-    pub fn call_nowait(&self, name: &'static str, args: MultiLuaMessage) -> Result<(), Error> {
+    pub fn call_nowait(
+        &self,
+        name: &'static str,
+        args: impl Into<MultiLuaMessage> + Clone + Sync + Send + 'static,
+    ) -> Result<(), Error> {
         match self.handler.clone() {
             Some(_handler) => {
                 let lua = self.lua.clone();
@@ -301,12 +309,12 @@ impl Actor {
     fn _call(
         lua: &Arc<Mutex<Lua>>,
         name: &str,
-        args: MultiLuaMessage,
+        args: impl Into<MultiLuaMessage> + Clone + Sync + Send + 'static,
     ) -> Result<LuaMessage, Error> {
         let vm = lua.lock().unwrap();
         let func: Function = vm.globals().get::<_, Function>(name)?;
 
-        func.call::<_, LuaMessage>(args)
+        func.call::<_, _>(args.into())
     }
     /*
     #[inline]
@@ -324,7 +332,7 @@ impl Actor {
 
 #[test]
 fn test_actor_new() {
-    use std::iter::FromIterator;
+    // use std::iter::FromIterator;
 
     use mlua::Variadic;
 
@@ -353,7 +361,7 @@ fn test_actor_new() {
         )
         .ok()
         .unwrap();
-        match act.call("testit", LuaMessage::from(1).into()) {
+        match act.call("testit", 1) {
             Ok(_v) => {
                 assert_eq!(Some(2), Option::from(_v));
             }
@@ -375,7 +383,8 @@ fn test_actor_new() {
         match act.call(
             "testlist",
             // Vec::<LuaMessage>::from_iter([3.into(), 2.into()]).into(),
-            LuaMessage::from_iter([3.into(), 2.into()]).into(),
+            // LuaMessage::from_iter([3.into(), 2.into()]),
+            LuaMessage::from_slice([3, 2]),
         ) {
             Ok(_v) => {
                 assert_eq!(Some(2), Option::from(_v));
@@ -397,7 +406,10 @@ fn test_actor_new() {
         println!("222");
         match act.call(
             "testvargs",
-            Variadic::<LuaMessage>::from_iter([6.into(), 7.into()]).into(),
+            // Variadic::<LuaMessage>::from_iter([6.into(), 7.into()]),
+            // Vec::<LuaMessage>::from([6.into(), 7.into()]),
+            // MultiLuaMessage::from_slice([6, 7]),
+            (6, 7.0, ""),
         ) {
             Ok(_v) => {
                 assert_eq!(Some(13), Option::from(_v));
